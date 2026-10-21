@@ -20,6 +20,10 @@
 /public/build
 /public/hot
 /public/storage
+/playwright-report
+/test-results
+/blob-report
+/playwright/.cache
 /storage/*.key
 /storage/pail
 /vendor

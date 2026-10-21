@@ -19,6 +19,13 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/), dan p
 - Panel admin `/admin/users` untuk melihat, menambah, mengubah role/status, dan mereset kata sandi pengguna; halaman daftar dan edit responsif.
 - Migrasi kolom `role` dan `is_active` pada tabel `users`; pengguna lama otomatis menjadi admin aktif.
 - Middleware `admin` dan `active`, tautan navigasi Pengguna khusus admin, serta test panel admin untuk akses role, tambah/ubah/nonaktifkan pengguna, reset kata sandi, dan akun nonaktif.
+- Unit test untuk seluruh tingkat denda keterlambatan, jam pulang Jumat, pulang cepat, lupa absen pulang, kombinasi denda, nominal potongan TPP, dan helper role pengguna.
+- Test E2E Playwright untuk autentikasi, input absensi massal dan rekap TPP, pembuatan operator sekaligus pembatasan panel admin, serta tambah/cari/hapus pegawai.
+- Environment pengujian `.env.e2e`, `database/e2e.sqlite` yang dibuat ulang otomatis, `E2eSeeder` khusus environment `e2e`, dan skrip `npm run e2e`, `e2e:ui`, serta `e2e:install`.
+- Workflow GitHub Actions `.github/workflows/ci-cd.yml` untuk Pint, unit/feature test PHP 8.2 dan 8.3, build Vite, E2E Playwright, serta deploy SSH ke VPS.
+- `AUDIT.md` berisi audit keamanan, hardening, logika, integritas data, performa, frontend, dan operasional yang dikelompokkan per domain beserta prioritas dan rekomendasi.
+- `ROADMAP.md` berisi urutan perbaikan berdasarkan audit, kriteria selesai, dan backlog jangka panjang.
+- `GITHUB_ISSUES.md` berisi 13 draf issue siap salin ke GitHub, lengkap dengan label, bukti, dampak, usulan perbaikan, dan kriteria selesai.
 
 ### Diubah
 
@@ -40,6 +47,11 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/), dan p
 - Pint merapikan format beberapa file lama (model, migrasi, seeder) tanpa perubahan perilaku.
 - `README.md` diganti dari template Laravel menjadi dokumentasi proyek: fitur, role, instalasi, perintah penting, aturan perhitungan TPP, struktur, testing, deployment, dan keamanan.
 - `README.md` mencantumkan URL clone repositori GitHub `https://github.com/Jetlagggg/rekap-absen.git`.
+- Perhitungan denda absensi dipindahkan ke `App\Services\AttendancePenaltyCalculator` agar dapat diuji unit tanpa mengubah aturan, tarif, atau jam kerja.
+- `README.md` dan `AGENTS.md` mendokumentasikan perintah E2E, struktur test, alur CI/CD, dan secrets deploy.
+- `AGENTS.md` mewajibkan worktree terisolasi, branch fitur, PR ke `main`, review serta merge/squash oleh pengguna, larangan push ke `main`, dan pencatatan temuan di `AUDIT.md`/`ROADMAP.md` sebelum menjadi GitHub Issue.
+- `README.md` menyelaraskan alur kontribusi dengan aturan branch/PR, menautkan `AUDIT.md`/`ROADMAP.md`/`GITHUB_ISSUES.md`, dan menegaskan larangan push langsung ke `main`.
+- `.gitignore` mengabaikan laporan, trace, dan hasil sementara Playwright.
 
 ### Diperbaiki
 
@@ -65,6 +77,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/), dan p
 - Akun nonaktif tidak dapat login dan sesi aktifnya dihentikan oleh middleware `active`.
 - `.gitignore` mengabaikan `database/*.sqlite`, file jurnalnya, serta artefak tooling `.impeccable` dan `.qodo` agar database lokal, data pegawai, dan hash kata sandi tidak ikut ter-push.
 - `DatabaseSeeder` tidak lagi membuat akun uji `test@example.com` dengan kata sandi default; akun dibuat melalui `php artisan app:create-admin` atau panel admin.
+- Workflow deploy hanya berjalan pada push/manual dispatch ke `main` setelah semua job lulus, tidak pernah pada pull request, dan membaca kredensial VPS dari secrets GitHub.
+- `.env.e2e` hanya memakai kredensial pengujian dan `E2eSeeder` menolak berjalan di luar environment `e2e`.
 
 ## [1.1.1] - 2026-05-31
 
