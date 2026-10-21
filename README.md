@@ -20,6 +20,8 @@ Aplikasi web rekap absensi dan perhitungan TPP (Tambahan Penghasilan Pegawai) un
 - [Aturan Perhitungan TPP](#aturan-perhitungan-tpp)
 - [Struktur Proyek](#struktur-proyek)
 - [Testing](#testing)
+- [Audit dan Roadmap](#audit-dan-roadmap)
+- [CI/CD](#cicd)
 - [Deployment](#deployment)
 - [Keamanan](#keamanan)
 - [Kontribusi](#kontribusi)
@@ -50,7 +52,8 @@ Akun admin pertama dibuat melalui perintah artisan (lihat [Instalasi](#instalasi
 - **Database:** SQLite (default), mendukung konfigurasi database Laravel lain seperti MySQL/PostgreSQL
 - **Frontend:** Blade, Bootstrap 5 dan Bootstrap Icons via CDN, CSS khusus halaman; scaffolding Vite 7 + Tailwind CSS 4 tersedia untuk pengembangan aset
 - **PDF:** `barryvdh/laravel-dompdf`
-- **Testing:** PHPUnit 11
+- **Testing:** PHPUnit 11 dan Playwright (E2E)
+- **CI/CD:** GitHub Actions
 - **Format kode:** Laravel Pint (PSR-12)
 
 ## Persyaratan
@@ -135,6 +138,11 @@ composer run dev
 | Migrasi database | `php artisan migrate` |
 | Membuat/mengatur ulang akun admin | `php artisan app:create-admin` |
 | Semua test | `php artisan test` |
+| Test unit | `php artisan test --testsuite=Unit` |
+| Test fitur | `php artisan test --testsuite=Feature` |
+| Test E2E | `npm run e2e` |
+| Pasang browser E2E | `npm run e2e:install` |
+| Test E2E mode UI | `npm run e2e:ui` |
 | Test spesifik | `php artisan test --filter=AdminUserTest` |
 | Format kode | `vendor/bin/pint` |
 | Bersihkan cache | `php artisan optimize:clear` |
@@ -192,16 +200,77 @@ resources/views/
 routes/web.php
 tests/
 ├── Feature/
-└── Unit/
+├── Unit/
+└── e2e/          # Playwright
+playwright.config.js
+.github/workflows/ci-cd.yml
 ```
 
 ## Testing
 
+### Unit dan feature test
+
 ```bash
 php artisan test
+php artisan test --testsuite=Unit
+php artisan test --testsuite=Feature
 ```
 
-Test memakai SQLite `:memory:` dan `RefreshDatabase`. Perubahan pada perhitungan TPP, validasi absensi, import pegawai, rekap, role, atau status akun wajib disertai test. Jalankan juga `vendor/bin/pint` sebelum mengirim perubahan.
+Test PHPUnit memakai SQLite `:memory:` dan `RefreshDatabase`. Aturan potongan TPP diuji unit melalui `AttendancePenaltyCalculator`; alur HTTP, validasi, dan panel admin diuji sebagai feature test. Perubahan pada perhitungan TPP, validasi absensi, import pegawai, rekap, role, atau status akun wajib disertai test.
+
+### End-to-end test
+
+```bash
+npm install
+npm run e2e:install   # unduh Chromium untuk Playwright
+npm run e2e
+npm run e2e:ui        # mode interaktif
+```
+
+E2E memakai environment terpisah `e2e`:
+
+- `.env.e2e` berisi `APP_KEY` khusus pengujian; jangan dipakai untuk produksi.
+- Database `database/e2e.sqlite` dibuat ulang setiap kali suite dijalankan.
+- `database/seeders/E2eSeeder.php` hanya berjalan pada environment `e2e` dan membuat akun `admin@e2e.test` / `operator@e2e.test` beserta dua pegawai contoh.
+- Playwright menjalankan `php artisan serve` pada port `9123` secara otomatis.
+
+Skenario E2E mencakup login/logout, penolakan kredensial salah, input absensi massal, rekap TPP, pembuatan operator, pembatasan akses panel admin, serta tambah/cari/hapus pegawai.
+
+Jalankan `vendor/bin/pint` sebelum mengirim perubahan.
+
+## Audit dan Roadmap
+
+- [`AUDIT.md`](AUDIT.md) — hasil audit keamanan, integritas data, logika TPP, performa, frontend, dan operasional, lengkap dengan bukti file/baris serta prioritas.
+- [`ROADMAP.md`](ROADMAP.md) — urutan perbaikan per fase, ukuran selesai, dan backlog jangka panjang.
+- [`GITHUB_ISSUES.md`](GITHUB_ISSUES.md) — 13 draf issue siap disalin ke GitHub beserta label dan kriteria selesai.
+
+Temuan audit belum otomatis menjadi GitHub Issue. Pembuatan issue dilakukan setelah isi dan prioritasnya disetujui pengelola.
+
+## CI/CD
+
+Workflow `.github/workflows/ci-cd.yml` berjalan pada push ke `main`, pull request, dan manual dispatch:
+
+1. **Code style** — `vendor/bin/pint --test`.
+2. **Unit & feature tests** — PHP 8.2 dan 8.3.
+3. **Build frontend** — `npm ci` dan `npm run build`; artifact `public/build` diunggah.
+4. **E2E** — Playwright dengan Chromium headless.
+5. **Deploy** — hanya pada push/manual dispatch ke `main` setelah semua job lulus.
+
+### Menyiapkan deploy VPS
+
+Tambahkan secrets berikut di **Settings → Secrets and variables → Actions**:
+
+| Secret | Keterangan |
+| --- | --- |
+| `DEPLOY_HOST` | Host atau IP VPS. |
+| `DEPLOY_USER` | Pengguna SSH yang memiliki akses ke direktori aplikasi. |
+| `DEPLOY_SSH_KEY` | Private key SSH (tanpa passphrase atau gunakan agent). |
+| `DEPLOY_PATH` | Path absolut checkout aplikasi di VPS, misalnya `/var/www/rekap-absen`. |
+| `DEPLOY_PORT` | Opsional; default `22`. |
+
+Variabel opsional `APP_URL` dapat diisi pada **Settings → Secrets and variables → Actions → Variables** untuk menampilkan tautan environment produksi.
+
+Server tujuan perlu memiliki PHP 8.2+, Composer, Node.js/npm, Git, dan database yang dikonfigurasi pada `.env` produksi. Direktori `DEPLOY_PATH` harus berupa checkout Git dengan remote `origin`, serta `storage/` dan `bootstrap/cache/` dapat ditulis oleh pengguna SSH. Skrip deploy mengaktifkan mode maintenance, menyelaraskan kode dengan `origin/main`, memasang dependensi, menjalankan migrasi, membangun aset, lalu mengoptimalkan cache. Jangan menaruh kredensial di workflow; gunakan secrets.
 
 ## Deployment
 
@@ -239,11 +308,13 @@ Laporkan masalah keamanan kepada pengelola proyek secara privat, bukan melalui i
 ## Kontribusi
 
 1. Baca `AGENTS.md` sebelum mengubah kode.
-2. Buat perubahan sekecil mungkin dan ikuti pola yang sudah ada.
-3. Tambahkan/perbarui test untuk perubahan perilaku.
-4. Catat setiap perubahan di bagian `[Unreleased]` pada `CHANGELOG.md`.
-5. Jalankan `php artisan test` dan `vendor/bin/pint`.
-6. Jangan melakukan commit, push, atau membuat PR tanpa persetujuan pemilik proyek.
+2. Mulai dari `main` yang sinkron, lalu buat worktree dan branch fitur; jangan bekerja langsung di `main`.
+3. Buat perubahan sekecil mungkin dan ikuti pola yang sudah ada.
+4. Tambahkan/perbarui test untuk perubahan perilaku.
+5. Catat setiap perubahan di bagian `[Unreleased]` pada `CHANGELOG.md`.
+6. Jalankan `php artisan test`, test E2E bila UI berubah, dan `vendor/bin/pint --test`.
+7. Ajukan PR ke `main`. Review, merge, dan squash dilakukan oleh pemilik proyek, bukan oleh agen.
+8. Jangan pernah push langsung ke `main`, force-push, atau membuat issue yang memuat data pegawai/kredensial tanpa persetujuan.
 
 ## Lisensi
 

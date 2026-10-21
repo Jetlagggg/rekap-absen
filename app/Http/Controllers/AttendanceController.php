@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Attendance;
 use App\Models\Employee;
+use App\Services\AttendancePenaltyCalculator;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -97,7 +97,7 @@ class AttendanceController extends Controller
     // =========================
     // 3. SIMPAN MASSAL
     // =========================
-    public function storeMassal(Request $request)
+    public function storeMassal(Request $request, AttendancePenaltyCalculator $calculator)
     {
         $validated = $request->validate([
             'tanggal' => 'required|date',
@@ -152,7 +152,7 @@ class AttendanceController extends Controller
             throw ValidationException::withMessages($errors);
         }
 
-        DB::transaction(function () use ($data, $tanggal) {
+        DB::transaction(function () use ($data, $tanggal, $calculator) {
 
             foreach ($data as $empId => $row) {
 
@@ -170,7 +170,7 @@ class AttendanceController extends Controller
 
                 if ($status === Attendance::STATUS_HADIR) {
 
-                    $hasil = $this->hitungDenda($jamMasuk, $jamPulang, $tanggal);
+                    $hasil = $calculator->calculate($tanggal, $jamMasuk, $jamPulang);
 
                     $telat = $hasil['telat'];
                     $cepat = $hasil['cepat'];
@@ -305,56 +305,6 @@ class AttendanceController extends Controller
         }
 
         return $employees;
-    }
-
-    private function hitungDenda($jamMasuk, $jamPulang, $tanggal)
-    {
-        $isJumat = Carbon::parse($tanggal)->isFriday();
-        $jamPulangStandar = $isJumat ? '11:00:00' : '16:00:00';
-
-        $jamMasukResmi = Carbon::parse("$tanggal 08:00:00");
-        $jamBatasToleransi = Carbon::parse("$tanggal 08:10:00");
-        $jamPulangKantor = Carbon::parse("$tanggal $jamPulangStandar");
-
-        $waktuMasuk = Carbon::parse("$tanggal $jamMasuk");
-        $waktuPulang = $jamPulang ? Carbon::parse("$tanggal $jamPulang") : null;
-
-        $totalPotongan = 0;
-        $telatMenit = 0;
-        $cepatMenit = 0;
-
-        if ($waktuMasuk->gt($jamBatasToleransi)) {
-
-            $telatMenit = $jamMasukResmi->diffInMinutes($waktuMasuk);
-
-            if ($telatMenit <= 30) {
-                $totalPotongan += 0.5;
-            } elseif ($telatMenit <= 60) {
-                $totalPotongan += 1.0;
-            } elseif ($telatMenit <= 90) {
-                $totalPotongan += 1.25;
-            } else {
-                $totalPotongan += 1.5;
-            }
-        }
-
-        if ($waktuPulang) {
-
-            if ($waktuPulang->lt($jamPulangKantor)) {
-                $cepatMenit = $waktuPulang->diffInMinutes($jamPulangKantor);
-                $totalPotongan += 1.0;
-            }
-
-        } elseif ($jamMasuk) {
-
-            $totalPotongan += 1.5;
-        }
-
-        return [
-            'telat' => $telatMenit,
-            'cepat' => $cepatMenit,
-            'total_persen' => $totalPotongan,
-        ];
     }
 
     public function updateEmployee(Request $request, $id)
